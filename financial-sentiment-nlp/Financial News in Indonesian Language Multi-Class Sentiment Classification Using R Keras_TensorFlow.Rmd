@@ -1,8 +1,7 @@
 ---
-title: "CSCIE89B_Final Project"
+title: "Financial News in Indonesian Language Multi-Class Sentiment Classification Using R Keras_TensorFlow"
 author: "Ernest Ferdian"
 date: "2025-12-20"
-output: html_document
 ---
 
 

@@ -13,7 +13,7 @@ A project focused on cohort analysis, funnel analysis, and A/B testing to identi
 ### 2. Ad Click Prediction using Machine Learning
 A machine learning project to predict ad click-through behavior and demonstrate how predictive models can support ad optimization.
 
-### 3. [Financial News Sentiment Analysis](./03_financial-sentiment-nlp)
+### 3. [Financial News Sentiment Analysis](./financial-sentiment-nlp)
 An NLP project focused on classifying Indonesian financial news sentiment and exploring business applications for market insights.
 
 ## Technical Skills

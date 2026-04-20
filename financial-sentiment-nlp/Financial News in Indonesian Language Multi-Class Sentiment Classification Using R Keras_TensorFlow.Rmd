@@ -1,0 +1,694 @@
+---
+title: "CSCIE89B_Final Project"
+author: "Ernest Ferdian"
+date: "2025-12-20"
+output: html_document
+---
+
+
+```{r Setup, include = FALSE}
+
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(stringr)
+library(tm)
+library(glmnet)
+library(keras)
+library(tensorflow)
+# install_keras() #install if needed
+
+set.seed(123)
+
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Data Preparation, include=TRUE}
+
+data_raw <- read.csv("Dataset-CNBCI-Sentimented.csv", stringsAsFactors = FALSE)
+
+cat("Columns in Dataset-CNBCI-Sentimented.csv:\n")
+print(colnames(data_raw))
+cat("\nFirst 3 rows:\n")
+print(head(data_raw, 3))
+
+TEXT_COL  <- "judul"
+LABEL_COL <- "sentimen"
+
+
+names(data_raw) <- tolower(names(data_raw))
+text_col  <- tolower(TEXT_COL)
+label_col <- tolower(LABEL_COL)
+
+if (!text_col %in% names(data_raw)) {
+  stop(paste0("Text column '", text_col, "' not found. Check TEXT_COL."))
+}
+if (!label_col %in% names(data_raw)) {
+  stop(paste0("Label column '", label_col, "' not found. Check LABEL_COL."))
+}
+
+
+data <- data_raw %>%
+  select(all_of(c(text_col, label_col))) %>%
+  rename(
+    text_raw = !!text_col,
+    label_raw = !!label_col
+  )
+
+cat("\nAfter selecting text + label:\n")
+print(head(data, 3))
+
+# Explorartory Data Analysis (EDA) - Distribution of labels (raw)
+ggplot(data, aes(x = as.factor(label_raw))) +
+  geom_bar(fill = "darkred", alpha = 0.8) +
+  geom_text(
+    stat = "count",
+    aes(label = ..count..),
+    vjust = -0.5,
+    color = "black",
+    size = 4
+  ) +
+  labs(
+    title = "Raw Sentiment Label Distribution",
+    x = "Sentiment Label",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Label Preparation, include=TRUE}
+
+if (is.numeric(data$label_raw)) {
+  cat("\nDetected numeric labels. Mapping to negative/neutral/positive...\n")
+  summary(data$label_raw)
+  data$sentiment <- dplyr::case_when(
+    data$label_raw < 0 ~ "negative",
+    data$label_raw > 0 ~ "positive",
+    TRUE               ~ "neutral"
+  )
+} else {
+  cat("\nDetected character/factor labels. Normalizing...\n")
+  lab <- tolower(trimws(as.character(data$label_raw)))
+  lab[lab %in% c("pos", "positive", "positif")] <- "positive"
+  lab[lab %in% c("neg", "negative", "negatif")] <- "negative"
+  lab[lab %in% c("neu", "neutral", "netral")]   <- "neutral"
+  data$sentiment <- lab
+}
+
+data$sentiment <- factor(
+  data$sentiment,
+  levels = c("negative", "neutral", "positive")
+)
+
+# Drop rows with unknown labels
+data <- data %>% filter(!is.na(sentiment))
+cat("\nSentiment label distribution:\n")
+print(table(data$sentiment))
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Text Cleaning, include=TRUE}
+clean_text <- function(x) {
+  x <- tolower(x)
+  x <- gsub("[^a-z0-9\\s]", " ", x)
+  x <- gsub("\\s+", " ", x)
+  trimws(x)
+}
+
+data <- data %>%
+  mutate(
+    text = clean_text(text_raw)
+  ) %>%
+  filter(text != "")
+
+cat("\nSample cleaned Indonesian texts:\n")
+print(head(data$text, 5))
+
+cat("\nTotal observations after cleaning:", nrow(data), "\n")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Train Test Split, include=TRUE}
+set.seed(123)
+train_idx <- createDataPartition(data$sentiment, p = 0.8, list = FALSE)
+train_data <- data[train_idx, ]
+test_data  <- data[-train_idx, ]
+
+cat("\nTrain size:", nrow(train_data), "\n")
+cat("Test size :", nrow(test_data), "\n")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Baseline, include=TRUE}
+
+train_corpus <- VCorpus(VectorSource(train_data$text))
+test_corpus  <- VCorpus(VectorSource(test_data$text))
+
+# Preprocessing controls for TF-IDF (language-agnostic)
+ctrl <- list(
+  removePunctuation = TRUE,
+  removeNumbers = TRUE,
+  stopwords = FALSE,
+  tolower = TRUE
+)
+
+train_dtm <- DocumentTermMatrix(
+  train_corpus,
+  control = c(ctrl, list(weighting = weightTfIdf))
+)
+
+# Use the same vocabulary (dictionary) for test set
+train_dtm <- removeSparseTerms(train_dtm, 0.99)
+test_dtm  <- DocumentTermMatrix(
+  test_corpus,
+  control = c(ctrl, list(dictionary = Terms(train_dtm),
+                            weighting = weightTfIdf))
+)
+
+# Convert to matrices
+x_train_tfidf <- as.matrix(train_dtm)
+x_test_tfidf  <- as.matrix(test_dtm)
+
+y_train_factor <- train_data$sentiment
+y_test_factor  <- test_data$sentiment
+
+# Multinomial Logistic Regression with glmnet
+
+set.seed(123)
+cvfit <- cv.glmnet(
+  x = x_train_tfidf,
+  y = y_train_factor,
+  family = "multinomial",
+  type.measure = "class"
+)
+
+lambda_best <- cvfit$lambda.min
+cat("\nBaseline: best lambda from CV:", lambda_best, "\n")
+
+# Predictions on test set
+pred_baseline <- predict(
+  cvfit,
+  newx = x_test_tfidf,
+  s = "lambda.min",
+  type = "class"
+)
+
+pred_baseline <- factor(pred_baseline, levels = levels(y_train_factor))
+
+cm_baseline <- confusionMatrix(pred_baseline, y_test_factor)
+cat("\n=== Baseline Confusion Matrix ===\n")
+print(cm_baseline)
+
+acc_baseline <- cm_baseline$overall["Accuracy"]
+cat("\nBaseline Test Accuracy:", round(acc_baseline, 4), "\n")
+
+# Plot confusion matrix for baseline
+cm_base_tbl <- as.data.frame(cm_baseline$table)
+ggplot(cm_base_tbl, aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), colour = "white", size = 4) +
+  scale_fill_gradient(low = "grey40", high = "lightblue") +
+  labs(title = "Baseline Confusion Matrix (TF-IDF + Logistic Regression)",
+       x = "True Sentiment", y = "Predicted Sentiment") +
+  theme_minimal()
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Neural Model, include=TRUE}
+max_words <- 20000
+maxlen    <- 60
+
+train_texts <- train_data$text
+test_texts  <- test_data$text
+
+tokenizer <- text_tokenizer(num_words = max_words, oov_token = "<OOV>")
+fit_text_tokenizer(tokenizer, train_texts)
+
+train_sequences <- texts_to_sequences(tokenizer, train_texts)
+test_sequences  <- texts_to_sequences(tokenizer,  test_texts)
+
+x_train <- pad_sequences(train_sequences, maxlen = maxlen,
+                         padding = "post", truncating = "post")
+x_test  <- pad_sequences(test_sequences,  maxlen = maxlen,
+                         padding = "post", truncating = "post")
+
+dim(x_train); dim(x_test)
+
+# Label preparation
+
+num_classes <- length(levels(train_data$sentiment))
+
+y_train_int <- as.integer(train_data$sentiment) - 1  # 0,1,2
+y_test_int  <- as.integer(test_data$sentiment)  - 1
+
+y_train <- to_categorical(y_train_int, num_classes = num_classes)
+y_test  <- to_categorical(y_test_int,  num_classes = num_classes)
+
+cat("\nNeural model training label counts:\n")
+print(table(y_train_int))
+cat("Neural model test label counts:\n")
+print(table(y_test_int))
+
+
+# Build BiLSTM Model
+
+embedding_dim <- 128
+
+model <- keras_model_sequential() %>%
+  layer_embedding(
+    input_dim = max_words,
+    output_dim = embedding_dim,
+    input_length = maxlen
+  ) %>%
+  layer_spatial_dropout_1d(rate = 0.2) %>%
+  bidirectional(layer_lstm(units = 128, return_sequences = FALSE)) %>%
+  layer_dropout(rate = 0.4) %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dropout(rate = 0.4) %>%
+  layer_dense(units = num_classes, activation = "softmax")
+
+summary(model)
+
+model %>% compile(
+  optimizer = "adam",
+  loss      = "categorical_crossentropy",
+  metrics   = c("accuracy")
+)
+
+
+# Train BiLSTM Model
+
+batch_size <- 64
+epochs     <- 25
+
+callback_es <- callback_early_stopping(
+  monitor = "val_loss",
+  patience = 3,
+  restore_best_weights = TRUE
+)
+
+history <- model %>% fit(
+  x_train, y_train,
+  batch_size = batch_size,
+  epochs = epochs,
+  validation_split = 0.2,
+  callbacks = list(callback_es),
+  verbose = 2
+)
+
+
+# Plot training curves
+
+plot(history)
+
+df_hist <- data.frame(
+  epoch    = 1:length(history$metrics$loss),
+  loss     = history$metrics$loss,
+  val_loss = history$metrics$val_loss,
+  acc      = history$metrics$accuracy,
+  val_acc  = history$metrics$val_accuracy
+)
+
+ggplot(df_hist, aes(x = epoch)) +
+  geom_line(aes(y = loss, colour = "Train Loss")) +
+  geom_line(aes(y = val_loss, colour = "Val Loss")) +
+  labs(title = "BiLSTM: Training & Validation Loss",
+       x = "Epoch", y = "Loss") +
+  theme_minimal()
+
+ggplot(df_hist, aes(x = epoch)) +
+  geom_line(aes(y = acc, colour = "Train Accuracy")) +
+  geom_line(aes(y = val_acc, colour = "Val Accuracy")) +
+  labs(title = "BiLSTM: Training & Validation Accuracy",
+       x = "Epoch", y = "Accuracy") +
+  theme_minimal()
+
+
+# Evaluate BiLSTM on Test Set
+
+score <- model %>% evaluate(x_test, y_test, verbose = 0)
+cat("\nBiLSTM Test loss    :", round(score["loss"], 4), "\n")
+cat("BiLSTM Test accuracy:", round(score["accuracy"], 4), "\n")
+
+acc_neural <- as.numeric(score["accuracy"])
+
+
+# Confusion Matrix for BiLSTM
+
+pred_probs_nn <- model %>% predict(x_test)
+pred_int_nn   <- apply(pred_probs_nn, 1, which.max) - 1
+
+label_levels <- levels(train_data$sentiment)
+
+pred_labels_nn <- factor(label_levels[pred_int_nn + 1], levels = label_levels)
+true_labels_nn <- factor(label_levels[y_test_int + 1], levels = label_levels)
+
+cm_neural <- confusionMatrix(pred_labels_nn, true_labels_nn)
+cat("\n=== BiLSTM Confusion Matrix ===\n")
+print(cm_neural)
+
+cm_neural_tbl <- as.data.frame(cm_neural$table)
+ggplot(cm_neural_tbl, aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), colour = "white", size = 4) +
+  scale_fill_gradient(low = "grey40", high = "lightgreen") +
+  labs(title = "Neural Confusion Matrix (Embedding + BiLSTM)",
+       x = "True Sentiment", y = "Predicted Sentiment") +
+  theme_minimal()
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Comparison, include=TRUE}
+
+cat("Baseline (TF-IDF + Logistic Regression) Accuracy:",
+    round(acc_baseline, 4), "\n")
+cat("Neural (Embedding + BiLSTM) Accuracy           :",
+    round(acc_neural, 4), "\n")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Filter Big Caps, include=TRUE}
+
+bigcaps <- c("ADRO", "AMRT", "ANTM", "ARTO", "ASII",
+  "BBCA", "BBNI", "BBRI", "BBTN", "BMRI",
+  "BRIS", "BRPT", "BUKA", "CPIN", "ELSA",
+  "ERAA", "EXCL", "GGRM", "GOTO", "HMSP",
+  "HRUM", "ICBP", "INCO", "INDF", "INKP",
+  "INTP", "ITMG", "JPFA", "JSMR", "KLBF",
+  "MDKA", "MEDC", "MIKA", "MTDL", "PGAS",
+  "PTBA", "PTPP", "SMGR", "SMRA", "TBIG",
+  "TINS", "TKIM", "TLKM", "TOWR", "UNVR"
+)
+
+databc <- data %>%
+  mutate(
+    text_upper = toupper(text_raw),
+    ticker = str_extract(text_upper, paste(bigcaps, collapse = "|"))
+  ) %>%
+  filter(!is.na(ticker))
+
+cat("\nNumber of big-cap news articles (databc):", nrow(databc), "\n")
+cat("\nBig-cap ticker distribution (databc):\n")
+print(table(databc$ticker))
+cat("\nSentiment distribution within big caps (databc):\n")
+print(table(databc$sentiment))
+
+databc <- databc %>%
+  mutate(
+    text = clean_text(text_raw)
+  ) %>%
+  filter(text != "")
+
+cat("\nSample cleaned Indonesian texts (big caps only, databc):\n")
+print(head(databc$text, 5))
+
+cat("\nTotal observations after cleaning (big caps, databc):", nrow(databc), "\n")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Train Test Split Big Caps, include=TRUE}
+
+set.seed(123)
+train_idx_bc <- createDataPartition(databc$sentiment, p = 0.8, list = FALSE)
+train_databc <- databc[train_idx_bc, ]
+test_databc  <- databc[-train_idx_bc, ]
+
+cat("\nTrain size (databc):", nrow(train_databc), "\n")
+cat("Test size  (databc):", nrow(test_databc), "\n")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Baseline Big Caps, include=TRUE}
+
+train_corpus <- VCorpus(VectorSource(train_databc$text))
+test_corpus  <- VCorpus(VectorSource(test_databc$text))
+
+# Preprocessing controls for TF-IDF (language-agnostic)
+ctrl <- list(
+  removePunctuation = TRUE,
+  removeNumbers = TRUE,
+  stopwords = FALSE,
+  tolower = TRUE
+)
+
+train_dtm <- DocumentTermMatrix(
+  train_corpus,
+  control = c(ctrl, list(weighting = weightTfIdf))
+)
+
+# Use the same vocabulary (dictionary) for test set
+train_dtm <- removeSparseTerms(train_dtm, 0.99)
+test_dtm  <- DocumentTermMatrix(
+  test_corpus,
+  control = c(ctrl, list(dictionary = Terms(train_dtm),
+                            weighting = weightTfIdf))
+)
+
+# Convert to matrices
+x_train_tfidf <- as.matrix(train_dtm)
+x_test_tfidf  <- as.matrix(test_dtm)
+
+y_train_factor <- train_databc$sentiment
+y_test_factor  <- test_databc$sentiment
+
+# Fit Multinomial Logistic Regression with glmnet
+
+set.seed(123)
+cvfit <- cv.glmnet(
+  x = x_train_tfidf,
+  y = y_train_factor,
+  family = "multinomial",
+  type.measure = "class"
+)
+
+lambda_best <- cvfit$lambda.min
+cat("\nBig Caps Baseline: best lambda from CV:", lambda_best, "\n")
+
+# Predictions on test set
+pred_baseline <- predict(
+  cvfit,
+  newx = x_test_tfidf,
+  s = "lambda.min",
+  type = "class"
+)
+
+pred_baseline <- factor(pred_baseline, levels = levels(y_train_factor))
+
+cm_baseline <- confusionMatrix(pred_baseline, y_test_factor)
+cat("\n=== Big Caps Baseline Confusion Matrix ===\n")
+print(cm_baseline)
+
+acc_baselinebc <- cm_baseline$overall["Accuracy"]
+cat("\nBig Caps Baseline Test Accuracy:", round(acc_baselinebc, 4), "\n")
+
+# Plot confusion matrix for baseline
+cm_base_tbl <- as.data.frame(cm_baseline$table)
+ggplot(cm_base_tbl, aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), colour = "white", size = 4) +
+  scale_fill_gradient(low = "grey40", high = "steelblue") +
+  labs(title = "Big Caps Baseline Confusion Matrix (TF-IDF + Logistic Regression)",
+       x = "True Sentiment", y = "Predicted Sentiment") +
+  theme_minimal()
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Neural Model Big Caps, include=TRUE}
+
+max_words <- 20000
+maxlen    <- 60
+
+train_texts <- train_databc$text
+test_texts  <- test_databc$text
+
+tokenizer <- text_tokenizer(num_words = max_words, oov_token = "<OOV>")
+fit_text_tokenizer(tokenizer, train_texts)
+
+train_sequences <- texts_to_sequences(tokenizer, train_texts)
+test_sequences  <- texts_to_sequences(tokenizer,  test_texts)
+
+x_train <- pad_sequences(train_sequences, maxlen = maxlen,
+                         padding = "post", truncating = "post")
+x_test  <- pad_sequences(test_sequences,  maxlen = maxlen,
+                         padding = "post", truncating = "post")
+
+dim(x_train); dim(x_test)
+
+# Label Preparation
+
+num_classes <- length(levels(train_databc$sentiment))
+
+y_train_int <- as.integer(train_databc$sentiment) - 1  
+y_test_int  <- as.integer(test_databc$sentiment)  - 1
+
+y_train <- to_categorical(y_train_int, num_classes = num_classes)
+y_test  <- to_categorical(y_test_int,  num_classes = num_classes)
+
+cat("\nBig Caps Neural model training label counts:\n")
+print(table(y_train_int))
+cat("Big Caps Neural model test label counts:\n")
+print(table(y_test_int))
+
+
+# Build BiLSTM Model
+
+embedding_dim <- 128
+
+model <- keras_model_sequential() %>%
+  layer_embedding(
+    input_dim = max_words,
+    output_dim = embedding_dim,
+    input_length = maxlen
+  ) %>%
+  layer_spatial_dropout_1d(rate = 0.2) %>%
+  bidirectional(layer_lstm(units = 128, return_sequences = FALSE)) %>%
+  layer_dropout(rate = 0.4) %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dropout(rate = 0.4) %>%
+  layer_dense(units = num_classes, activation = "softmax")
+
+summary(model)
+
+model %>% compile(
+  optimizer = "adam",
+  loss      = "categorical_crossentropy",
+  metrics   = c("accuracy")
+)
+
+
+# Train BiLSTM
+
+batch_size <- 64
+epochs     <- 25
+
+callback_es <- callback_early_stopping(
+  monitor = "val_loss",
+  patience = 3,
+  restore_best_weights = TRUE
+)
+
+history <- model %>% fit(
+  x_train, y_train,
+  batch_size = batch_size,
+  epochs = epochs,
+  validation_split = 0.2,
+  callbacks = list(callback_es),
+  verbose = 2
+)
+
+
+# Plot training curve
+
+plot(history)
+
+df_hist <- data.frame(
+  epoch    = 1:length(history$metrics$loss),
+  loss     = history$metrics$loss,
+  val_loss = history$metrics$val_loss,
+  acc      = history$metrics$accuracy,
+  val_acc  = history$metrics$val_accuracy
+)
+
+ggplot(df_hist, aes(x = epoch)) +
+  geom_line(aes(y = loss, colour = "Train Loss")) +
+  geom_line(aes(y = val_loss, colour = "Val Loss")) +
+  labs(title = "Big Caps BiLSTM: Training & Validation Loss",
+       x = "Epoch", y = "Loss") +
+  theme_minimal()
+
+ggplot(df_hist, aes(x = epoch)) +
+  geom_line(aes(y = acc, colour = "Train Accuracy")) +
+  geom_line(aes(y = val_acc, colour = "Val Accuracy")) +
+  labs(title = "Big Caps BiLSTM: Training & Validation Accuracy",
+       x = "Epoch", y = "Accuracy") +
+  theme_minimal()
+
+
+# Evaluate BiLSTM on Test Set
+
+score <- model %>% evaluate(x_test, y_test, verbose = 0)
+cat("\nBig Caps BiLSTM Test loss    :", round(score["loss"], 4), "\n")
+cat("Big Caps BiLSTM Test accuracy:", round(score["accuracy"], 4), "\n")
+
+acc_neuralbc <- as.numeric(score["accuracy"])
+
+
+# Confusion Matrix for BiLSTM
+
+pred_probs_nn <- model %>% predict(x_test)
+pred_int_nn   <- apply(pred_probs_nn, 1, which.max) - 1
+
+label_levels <- levels(train_databc$sentiment)
+
+pred_labels_nn <- factor(label_levels[pred_int_nn + 1], levels = label_levels)
+true_labels_nn <- factor(label_levels[y_test_int + 1], levels = label_levels)
+
+cm_neural <- confusionMatrix(pred_labels_nn, true_labels_nn)
+cat("\n=== BiLSTM Confusion Matrix ===\n")
+print(cm_neural)
+
+cm_neural_tbl <- as.data.frame(cm_neural$table)
+ggplot(cm_neural_tbl, aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), colour = "white", size = 4) +
+  scale_fill_gradient(low = "grey40", high = "darkgreen") +
+  labs(title = "Big Caps Neural Confusion Matrix (Embedding + BiLSTM)",
+       x = "True Sentiment", y = "Predicted Sentiment") +
+  theme_minimal()
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Compare Baseline and Big Caps, include=TRUE}
+
+cat("Baseline (TF-IDF + Logistic Regression) Accuracy:",
+    round(acc_baseline, 4), "\n")
+cat("Neural (Embedding + BiLSTM) Accuracy           :",
+    round(acc_neural, 4), "\n")
+cat("Big Caps Baseline (TF-IDF + Logistic Regression) Accuracy:",
+    round(acc_baselinebc, 4), "\n")
+cat("Big Caps Neural (Embedding + BiLSTM) Accuracy           :",
+    round(acc_neuralbc, 4), "\n")
+
+accuracy_df <- data.frame(
+  Model = factor(c("Baseline (All)", "Neural (All)",
+                   "Baseline (Big Caps)", "Neural (Big Caps)"),
+                 levels = c("Baseline (All)", "Neural (All)",
+                            "Baseline (Big Caps)", "Neural (Big Caps)")),
+  Accuracy = c(acc_baseline, acc_neural, acc_baselinebc, acc_neuralbc)
+)
+
+ggplot(accuracy_df, aes(x = Model, y = Accuracy, fill = Model)) +
+  geom_col(width = 0.65) +
+  geom_text(aes(label = sprintf("%.3f", Accuracy)),
+            vjust = -0.5, size = 4) +
+  scale_fill_manual(values = c("lightblue", "lightgreen", "steelblue", "darkgreen")) +
+  ylim(0, 1) +
+  labs(
+    title = "Comparison of Model Accuracies",
+    x = "Model Type",
+    y = "Accuracy"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.text.x = element_text(angle = 25, hjust = 1)
+  )
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```

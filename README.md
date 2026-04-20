@@ -1,7 +1,7 @@
 # Ernest Ferdian – AI / Data Science Portfolio
 
 ## About Me
-I am a data-driven business and product leader with experience at Google, TikTok, and Meta. I am currently transitioning into AI, Machine Learning, Data Science, and Product Analytics while studying Data Science at Harvard Extension School.
+I am a data-driven business and product leader with experience at Google, TikTok, and Meta. I am currently transitioning into AI, Machine Learning, Data Science, and Product Analytics while pursuing Data Science Master Degree at Harvard.
 
 This portfolio documents my learning journey and applied projects in product analytics, machine learning, and NLP.
 

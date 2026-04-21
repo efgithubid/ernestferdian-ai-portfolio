@@ -10,7 +10,7 @@ This portfolio documents my learning journey and applied projects in product ana
 ### 1. [Product Analytics – User Retention & Experimentation](./product-analytics-retention)
 A project focused on cohort analysis, funnel analysis, and A/B testing to identify drivers of user retention and engagement.
 
-### 2. Ad Click Prediction using Machine Learning
+### 2. [Ad Click Prediction using Machine Learning](ad_funnel_optimization_and_conversion_using_machine_learning)
 A machine learning project to predict ad click-through behavior and demonstrate how predictive models can support ad optimization.
 
 ### 3. [Financial News Sentiment Analysis](./financial-sentiment-nlp)

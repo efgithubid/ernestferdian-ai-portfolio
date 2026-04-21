@@ -79,7 +79,7 @@ Estimate expected conversions:
 
 ## 📉 Confusion Matrix
 
-![Confusion Matrix](confusion_matrix_rf.png)
+![Confusion Matrix](confusion_matrix.png)
 
 - Balanced precision and recall across both classes  
 - Strong performance in both positive and negative predictions  
@@ -101,8 +101,6 @@ Top drivers of conversion:
 ---
 
 ## 📈 Spend vs Conversion (Optimization)
-
-![Sweet Spot Curve](sweet_spot_curve.png)
 
 To identify optimal budget allocation:
 - Modeled **nonlinear relationship** using polynomial regression

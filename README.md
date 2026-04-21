@@ -7,7 +7,7 @@ This portfolio documents my learning journey and applied projects in product ana
 
 ## Portfolio Projects
 
-### 1. Product Analytics – User Retention & Experimentation
+### 1. Product Analytics – User Retention & Experimentation (./product-analytics-retention)
 A project focused on cohort analysis, funnel analysis, and A/B testing to identify drivers of user retention and engagement.
 
 ### 2. Ad Click Prediction using Machine Learning

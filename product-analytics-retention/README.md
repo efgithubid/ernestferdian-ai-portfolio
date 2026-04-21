@@ -30,6 +30,8 @@ Kaggle Database: https://www.kaggle.com/datasets/utsab5740/customer-cohort-analy
 - ROC Curve
 - AUC
 
+## RESULT
+
 ## Cohort Analysis
 ![Cohort Heatmap](Cohort.png)
 
@@ -47,3 +49,51 @@ The sharp drop in retention after the first purchase suggests that the onboardin
 Product teams should focus on improving the first 30-day experience, including personalized recommendations, promotions, or follow-up engagement strategies to increase repeat purchases.
 
 Additionally, the decline in retention across newer cohorts suggests that recent changes in acquisition channels, pricing, or product experience may be negatively impacting user quality.
+
+## Funnel Analysis
+![Funnel](Funnel.png)
+
+The largest drop occurs between first purchase and repeat purchase, indicating weak early retention. This aligns with the cohort analysis, which showed a sharp decline after the first month.
+
+Improving repeat purchase behavior should be a key priority, as it directly impacts long-term customer value.
+
+## A/B Test Simulation
+Chi-square: 0.8027413620085994
+P-value: 0.37027500917862355
+
+The chi-square test was conducted to evaluate whether the treatment group had a higher repeat purchase rate than the control group.
+
+The resulting p-value is 0.37, which is significantly greater than the 0.05 threshold. Therefore, we fail to reject the null hypothesis.
+
+This indicates that there is no statistically significant difference in repeat purchase behavior between the control and treatment groups.
+
+The simulated treatment does not appear to improve user retention. This suggests that the change being tested may not have a meaningful impact on customer behavior.
+
+Further experimentation or alternative product interventions may be required to drive improvements in retention.
+
+## Machine Learning Model
+![Confusion Matrix](Confusion_Matrix.png)
+Both models perform well in predicting repeat purchase behavior. However, the Random Forest model shows a clear improvement in identifying repeat customers.
+
+Specifically, Random Forest significantly reduces false negatives, meaning it is better at detecting users who are likely to return.
+
+From a business perspective, this is critical because missing a repeat customer (false negative) means losing an opportunity to reinforce engagement or increase lifetime value.
+
+Therefore, Random Forest is the preferred model when the goal is to identify and retain high-value returning customers.
+The Random Forest model shows that total quantity purchased is by far the most important predictor of repeat behavior, accounting for nearly 75% of the model’s decision-making.
+
+This indicates that deeper engagement, measured by the number of items purchased, is a stronger signal of retention than monetary value alone.
+
+While total spending also contributes to predicting repeat behavior, its impact is significantly smaller. Additionally, average order value has limited importance, suggesting that high-value purchases do not necessarily translate into long-term customer retention.
+
+Finally, the experimental variant has negligible importance, reinforcing earlier findings that the tested treatment does not significantly influence user behavior.
+
+![ROC Curve](ROC_Curve.png)
+Both Logistic Regression and Random Forest models achieve near-perfect AUC scores (0.995 and 0.999 respectively), indicating excellent ability to distinguish between repeat and non-repeat customers.
+
+The ROC curves show that both models maintain a high true positive rate while keeping the false positive rate very low across thresholds. This suggests strong separability in the dataset.
+
+However, the high performance is likely driven by the use of aggregated behavioral features such as total quantity purchased and total spending, which are closely correlated with repeat behavior.
+
+Therefore, while the models perform extremely well, their predictive power may be optimistic compared to real-world scenarios where only early-stage user signals are available.
+

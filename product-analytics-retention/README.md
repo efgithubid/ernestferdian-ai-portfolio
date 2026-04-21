@@ -31,7 +31,7 @@ Kaggle Database: https://www.kaggle.com/datasets/utsab5740/customer-cohort-analy
 - AUC
 
 ## Cohort Analysis
-![Retention Heatmap](cohort.png)
+![Cohort Heatmap](Cohort.png)
 
 Key insight:
 The cohort retention analysis shows a sharp drop in user retention after the first purchase. Most cohorts experience a significant decline from Month 0 to Month 1, indicating that many users do not return after their initial transaction.

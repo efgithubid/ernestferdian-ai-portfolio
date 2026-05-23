@@ -10,6 +10,7 @@ The project compares multiple deep learning image classification approaches, inc
 - Custom CNN
 - ResNet
 - EfficientNetB0 with transfer learning
+- YOLO
 
 The study evaluates how different architectures perform in detecting manufacturing defects under real-world industrial constraints.
 

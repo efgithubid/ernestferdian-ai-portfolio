@@ -19,7 +19,7 @@ An NLP project focused on classifying Indonesian financial news sentiment and ex
 ### 4. [Financial News Sentiment Analysis using LLM Pretrained Language](./financial_sentiment_analysis_llm_pretrained_language_indobert)
 A LLM project focused on classifying Indonesian financial news sentiment using more modern LLM approach Pretrained Language IndoBERT.
 
-### 5. [Computer Vision Deep Learning for Identifying Industrial Image Defect](./computer_vision_deep_learning_cnn_resnet_efficientbnet_defect_in_industrial_image)
+### 5. [Computer Vision Deep Learning for Identifying Industrial Image Defect](./computer_vision_deep_learning_identifying_defect_in_industrial_image)
 A Computer Vision Deep Learning on identifying industrial defect image using CNN, Resnet, EfficientBnet and YOLO
 
 ## Technical Skills

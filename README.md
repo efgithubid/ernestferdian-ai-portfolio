@@ -13,7 +13,7 @@ A project focused on cohort analysis, funnel analysis, and A/B testing to identi
 ### 2. [Ad Funnel Optimization Click & Conversion Prediction using Machine Learning](ad_funnel_optimization_and_conversion_using_machine_learning)
 A machine learning project to predict ad conversion and demonstrate how predictive models can support ad optimization.
 
-### 3. [Financial News Sentiment Analysis using NLP](./financial-sentiment-nlp)
+### 3. [Financial News Sentiment Analysis using NLP](./financial_sentiment_nlp)
 An NLP project focused on classifying Indonesian financial news sentiment and exploring business applications for market insights.
 
 ### 4. [Financial News Sentiment Analysis using LLM Pretrained Language](./financial_sentiment_analysis_llm_pretrained_language_indobert)
